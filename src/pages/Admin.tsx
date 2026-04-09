@@ -38,7 +38,7 @@ export default function Admin() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Simple hardcoded credentials for demo purposes
-    if (loginData.username === "admin" && loginData.password === "admin123") {
+    if (loginData.username === "dilawar" && loginData.password === "dilawar4747") {
       setIsAuthenticated(true);
       setLoginError("");
     } else {
