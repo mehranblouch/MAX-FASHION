@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, CheckCircle2, Package, ShoppingCart, Settings as SettingsIcon, Image as ImageIcon, X } from "lucide-react";
 import { Product, Order, Settings } from "../types";
 import { collection, getDocs, doc, setDoc, getDoc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../firebase";
 
 export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -16,6 +17,10 @@ export default function Admin() {
   const [isEditing, setIsEditing] = useState<Product | null>(null);
   const [showForm, setShowForm] = useState(false);
 
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [socialWarning, setSocialWarning] = useState("");
+
   // Form State
   const [formData, setFormData] = useState({
     name: "",
@@ -25,6 +30,9 @@ export default function Admin() {
     category: "Casual",
     description: "",
     image: "",
+    isNew: false,
+    isOnSale: false,
+    discountPercentage: 0,
   });
 
   const CATEGORIES = ["Wedding", "Summer", "Winter", "2 Pieces", "3 Pieces", "Casual"];
@@ -64,35 +72,136 @@ export default function Admin() {
     setSettings(sData);
   };
 
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+          resolve(dataUrl);
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      setSocialWarning(""); // Clear warning on direct upload
+      
+      // FREE MODE: Compress to Base64 instead of uploading to Firebase Storage
+      const base64Image = await compressImage(file);
+      setFormData(prev => ({ ...prev, image: base64Image }));
+      
+      alert("Image processed successfully!");
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Failed to process image. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUrlChange = (url: string) => {
+    setFormData({ ...formData, image: url });
+    
+    if (url.includes("instagram.com") || url.includes("facebook.com")) {
+      setSocialWarning("⚠️ Social media links (Instagram/Facebook) often block direct embedding. For a 100% reliable experience, please download the image and use the 'UPLOAD DIRECT IMAGE' button above.");
+    } else {
+      setSocialWarning("");
+    }
+  };
+
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const payload = {
-      name: formData.name,
-      pieces: Number(formData.pieces),
-      color: formData.color,
-      price: Number(formData.price),
-      category: formData.category,
-      description: formData.description,
-      image: formData.image,
-    };
+    if (isSubmitting) return;
 
-    if (isEditing) {
-      await updateDoc(doc(db, "products", isEditing.id), payload);
-    } else {
-      await addDoc(collection(db, "products"), payload);
+    try {
+      setIsSubmitting(true);
+      const payload = {
+        name: formData.name.trim(),
+        pieces: Number(formData.pieces),
+        color: formData.color.trim(),
+        price: Number(formData.price),
+        category: formData.category,
+        description: formData.description.trim(),
+        image: formData.image.trim(),
+        isNew: formData.isNew,
+        isOnSale: formData.isOnSale,
+        discountPercentage: Number(formData.discountPercentage),
+      };
+
+      if (isEditing) {
+        await updateDoc(doc(db, "products", isEditing.id), payload);
+        alert("Product updated successfully!");
+      } else {
+        await addDoc(collection(db, "products"), payload);
+        alert("Product added successfully!");
+      }
+
+      setShowForm(false);
+      setIsEditing(null);
+      setFormData({ 
+        name: "", 
+        pieces: "", 
+        color: "", 
+        price: "", 
+        category: "Casual", 
+        description: "", 
+        image: "",
+        isNew: false,
+        isOnSale: false,
+        discountPercentage: 0
+      });
+      setSocialWarning("");
+      fetchData();
+    } catch (error) {
+      console.error("Submit error:", error);
+      alert("Failed to save product. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setShowForm(false);
-    setIsEditing(null);
-    setFormData({ name: "", pieces: "", color: "", price: "", category: "Casual", description: "", image: "" });
-    fetchData();
   };
 
   const handleDeleteProduct = async (id: string) => {
     if (confirm("Are you sure you want to delete this product?")) {
-      await deleteDoc(doc(db, "products", id));
-      fetchData();
+      try {
+        await deleteDoc(doc(db, "products", id));
+        alert("Product deleted successfully!");
+        fetchData();
+      } catch (error) {
+        console.error("Delete error:", error);
+        alert("Failed to delete product. Please try again.");
+      }
     }
   };
 
@@ -268,19 +377,147 @@ export default function Admin() {
                       placeholder="Enter product details, material, care instructions, etc."
                     ></textarea>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Product Image URL</label>
-                    <input
-                      required
-                      type="url"
-                      placeholder="https://images.unsplash.com/photo-..."
-                      className="w-full bg-black border border-white/10 p-4 rounded-sm focus:border-yellow-500 outline-none transition-all"
-                      value={formData.image}
-                      onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                    />
+
+                  {/* New Arrival & Sale Toggles */}
+                  <div className="grid grid-cols-2 gap-6 p-4 bg-white/5 border border-white/10 rounded-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest">New Arrival</p>
+                        <p className="text-[10px] text-gray-500">Show 'NEW' badge</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, isNew: !formData.isNew })}
+                        className={`w-12 h-6 rounded-full transition-all relative ${formData.isNew ? 'bg-yellow-500' : 'bg-white/10'}`}
+                      >
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-black transition-all ${formData.isNew ? 'left-7' : 'left-1'}`}></div>
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest">On Sale</p>
+                        <p className="text-[10px] text-gray-500">Enable Discount</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, isOnSale: !formData.isOnSale })}
+                        className={`w-12 h-6 rounded-full transition-all relative ${formData.isOnSale ? 'bg-yellow-500' : 'bg-white/10'}`}
+                      >
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-black transition-all ${formData.isOnSale ? 'left-7' : 'left-1'}`}></div>
+                      </button>
+                    </div>
                   </div>
-                  <button className="w-full py-4 bg-yellow-500 text-black font-bold rounded-sm hover:bg-yellow-400 transition-all">
-                    {isEditing ? "UPDATE PRODUCT" : "SAVE PRODUCT"}
+
+                  {/* Discount Input & Preview */}
+                  {formData.isOnSale && (
+                    <div className="p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-sm space-y-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-yellow-500 uppercase mb-2">Discount Percentage (%)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          placeholder="E.g. 20"
+                          className="w-full bg-black border border-yellow-500/20 p-3 rounded-sm focus:border-yellow-500 outline-none transition-all text-sm"
+                          value={formData.discountPercentage}
+                          onChange={(e) => setFormData({ ...formData, discountPercentage: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div className="flex justify-between items-end border-t border-yellow-500/10 pt-4">
+                        <div>
+                          <p className="text-[10px] text-gray-500 uppercase">Original Price</p>
+                          <p className="font-bold line-through text-gray-400">Rs. {Number(formData.price).toLocaleString()}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-yellow-500 font-bold uppercase">Sale Price</p>
+                          <p className="text-xl font-black text-yellow-500">
+                            Rs. {(Number(formData.price) * (1 - (Number(formData.discountPercentage) || 0) / 100)).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-4">Product Image</label>
+                    <div className="space-y-6">
+                      {/* Image Preview Area */}
+                      {formData.image && (
+                        <div className="relative aspect-video w-full bg-black border border-white/10 rounded-sm overflow-hidden group">
+                          <img 
+                            src={formData.image} 
+                            alt="Preview" 
+                            className="w-full h-full object-contain"
+                            onError={(e) => (e.currentTarget.src = "https://images.unsplash.com/photo-1594750825015-2743c65dfeb1?q=80&w=600&auto=format&fit=crop")}
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setFormData({...formData, image: ""})}
+                            className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Direct File Upload */}
+                      <div className="relative group">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          disabled={isUploading}
+                          className="hidden"
+                          id="image-upload"
+                        />
+                        <label
+                          htmlFor="image-upload"
+                          className={`flex flex-col items-center justify-center gap-3 w-full p-8 border-2 border-dashed border-yellow-500/30 rounded-sm cursor-pointer hover:border-yellow-500 hover:bg-yellow-500/5 transition-all ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {isUploading ? (
+                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-500"></div>
+                          ) : (
+                            <div className="p-4 bg-yellow-500/10 rounded-full group-hover:bg-yellow-500 transition-colors">
+                              <ImageIcon className="w-8 h-8 text-yellow-500 group-hover:text-black" />
+                            </div>
+                          )}
+                          <div className="text-center">
+                            <span className="block text-sm font-bold mb-1">{isUploading ? 'UPLOADING...' : 'UPLOAD DIRECT IMAGE'}</span>
+                            <span className="text-[10px] text-gray-500 uppercase tracking-widest">Recommended for Instagram/Facebook posts</span>
+                          </div>
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="h-px bg-white/10 flex-1"></div>
+                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">OR USE URL</span>
+                        <div className="h-px bg-white/10 flex-1"></div>
+                      </div>
+
+                      {/* URL Input */}
+                      <div className="space-y-3">
+                        <input
+                          required
+                          type="url"
+                          placeholder="Paste image URL here (Shopify, etc.)..."
+                          className={`w-full bg-black border p-4 rounded-sm outline-none transition-all ${socialWarning ? 'border-yellow-500/50' : 'border-white/10 focus:border-yellow-500'}`}
+                          value={formData.image}
+                          onChange={(e) => handleUrlChange(e.target.value)}
+                        />
+                        {socialWarning && (
+                          <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-sm">
+                            <p className="text-[11px] text-yellow-500 font-medium leading-relaxed">
+                              {socialWarning}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    disabled={isSubmitting}
+                    className={`w-full py-4 bg-yellow-500 text-black font-bold rounded-sm hover:bg-yellow-400 transition-all ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {isSubmitting ? "SAVING..." : (isEditing ? "UPDATE PRODUCT" : "SAVE PRODUCT")}
                   </button>
                 </form>
               </div>
@@ -306,7 +543,10 @@ export default function Admin() {
                           price: String(p.price), 
                           category: p.category || "Casual",
                           description: p.description || "",
-                          image: p.image || "" 
+                          image: p.image || "",
+                          isNew: p.isNew || false,
+                          isOnSale: p.isOnSale || false,
+                          discountPercentage: p.discountPercentage || 0
                         });
                         setShowForm(true);
                       }}

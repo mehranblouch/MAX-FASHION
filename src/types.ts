@@ -7,6 +7,9 @@ export interface Product {
   image: string;
   category: string;
   description: string;
+  isNew?: boolean;
+  isOnSale?: boolean;
+  discountPercentage?: number;
 }
 
 export interface Order {

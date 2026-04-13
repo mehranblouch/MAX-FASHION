@@ -13,6 +13,18 @@ export default function Collection({ addToCart }: { addToCart: (p: Product) => v
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const CATEGORIES = ["All", "Wedding", "Summer", "Winter", "2 Pieces", "3 Pieces", "Casual"];
+  const PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1594750825015-2743c65dfeb1?q=80&w=600&auto=format&fit=crop";
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    const target = e.currentTarget;
+    const src = target.src;
+    
+    if (src.includes("instagram.com") || src.includes("facebook.com")) {
+      console.warn("External social media image blocked by provider:", src);
+    }
+    
+    target.src = PLACEHOLDER_IMAGE;
+  };
 
   useEffect(() => {
     getDocs(collection(db, "products"))
@@ -92,15 +104,41 @@ export default function Collection({ addToCart }: { addToCart: (p: Product) => v
                 onClick={() => setSelectedProduct(product)}
               >
                 <img
-                  src={product.image}
+                  src={product.image.trim()}
                   alt={product.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   referrerPolicy="no-referrer"
+                  onError={handleImageError}
                 />
+                {product.isOnSale && (
+                  <div className="absolute top-4 left-4 bg-red-600 text-white text-[10px] font-black px-3 py-1.5 rounded-sm uppercase tracking-widest shadow-xl animate-pulse">
+                    {product.discountPercentage}% OFF
+                  </div>
+                )}
+                {!product.isOnSale && product.isNew && (
+                  <div className="absolute top-4 left-4 bg-yellow-500 text-black text-[10px] font-black px-3 py-1.5 rounded-sm uppercase tracking-widest shadow-xl">
+                    NEW
+                  </div>
+                )}
               </div>
               <div className="p-4 sm:p-6">
                 <h3 className="font-bold text-sm sm:text-lg mb-1 truncate">{product.name}</h3>
-                <p className="text-yellow-500 font-bold text-base sm:text-xl mb-2">Rs. {product.price.toLocaleString()}</p>
+                <div className="mb-2">
+                  {product.isOnSale ? (
+                    <div className="flex items-center gap-2">
+                      <p className="text-yellow-500 font-black text-base sm:text-xl">
+                        Rs. {(product.price * (1 - (product.discountPercentage || 0) / 100)).toLocaleString()}
+                      </p>
+                      <p className="text-gray-500 line-through text-[10px] sm:text-xs">
+                        Rs. {product.price.toLocaleString()}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-yellow-500 font-bold text-base sm:text-xl">
+                      Rs. {product.price.toLocaleString()}
+                    </p>
+                  )}
+                </div>
                 <div className="flex justify-between items-center text-[10px] sm:text-xs text-gray-500 mb-4 uppercase tracking-tighter sm:tracking-widest">
                   <span>{product.pieces} PIECES</span>
                   <span className="text-right">COLORS: {product.color}</span>
@@ -130,17 +168,57 @@ export default function Collection({ addToCart }: { addToCart: (p: Product) => v
             
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="aspect-[3/4] md:aspect-auto">
-                <img 
-                  src={selectedProduct.image} 
-                  alt={selectedProduct.name} 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
+                <div className="relative h-full bg-zinc-800">
+                  <img 
+                    src={selectedProduct.image.trim()} 
+                    alt={selectedProduct.name} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                    onError={handleImageError}
+                  />
+                  {selectedProduct.isOnSale && (
+                    <div className="absolute top-6 left-6 bg-red-600 text-white text-xs font-black px-4 py-2 rounded-sm uppercase tracking-[0.2em] shadow-2xl animate-pulse">
+                      {selectedProduct.discountPercentage}% OFF
+                    </div>
+                  )}
+                  {!selectedProduct.isOnSale && selectedProduct.isNew && (
+                    <div className="absolute top-6 left-6 bg-yellow-500 text-black text-xs font-black px-4 py-2 rounded-sm uppercase tracking-[0.2em] shadow-2xl">
+                      NEW ARRIVAL
+                    </div>
+                  )}
+                  {(selectedProduct.image.includes("instagram.com") || selectedProduct.image.includes("facebook.com")) && (
+                    <div className="absolute bottom-4 left-4 right-4 p-4 bg-black/60 backdrop-blur-md rounded-sm border border-white/10">
+                      <p className="text-[10px] text-yellow-500 font-bold uppercase mb-2">Social Media Link</p>
+                      <p className="text-xs text-gray-300 mb-3 line-clamp-2">This image may be protected by Instagram/Facebook security settings.</p>
+                      <a 
+                        href={selectedProduct.image} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-bold underline hover:text-yellow-500"
+                      >
+                        VIEW ORIGINAL POST
+                      </a>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="p-8 sm:p-12">
                 <p className="text-yellow-500 font-bold text-xs tracking-widest mb-2 uppercase">{selectedProduct.category}</p>
                 <h2 className="text-4xl font-bold mb-4 tracking-tighter">{selectedProduct.name}</h2>
-                <p className="text-3xl font-bold text-yellow-500 mb-8">Rs. {selectedProduct.price.toLocaleString()}</p>
+                <div className="mb-8">
+                  {selectedProduct.isOnSale ? (
+                    <div className="flex items-center gap-4">
+                      <p className="text-4xl font-black text-yellow-500">
+                        Rs. {(selectedProduct.price * (1 - (selectedProduct.discountPercentage || 0) / 100)).toLocaleString()}
+                      </p>
+                      <p className="text-xl text-gray-500 line-through">
+                        Rs. {selectedProduct.price.toLocaleString()}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-4xl font-bold text-yellow-500">Rs. {selectedProduct.price.toLocaleString()}</p>
+                  )}
+                </div>
                 
                 <div className="space-y-6 mb-12">
                   <div>
