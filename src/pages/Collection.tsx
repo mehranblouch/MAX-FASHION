@@ -168,14 +168,23 @@ export default function Collection({ addToCart }: { addToCart: (p: Product) => v
             
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="aspect-[3/4] md:aspect-auto">
-                <div className="relative h-full bg-zinc-800">
+                <div className="grid grid-cols-1 gap-2 p-2 h-full bg-zinc-800">
                   <img 
                     src={selectedProduct.image.trim()} 
                     alt={selectedProduct.name} 
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover rounded-sm"
                     referrerPolicy="no-referrer"
                     onError={handleImageError}
                   />
+                  {selectedProduct.secondaryImage && (
+                    <img 
+                      src={selectedProduct.secondaryImage.trim()} 
+                      alt={`${selectedProduct.name} - view 2`} 
+                      className="w-full h-full object-cover rounded-sm"
+                      referrerPolicy="no-referrer"
+                      onError={handleImageError}
+                    />
+                  )}
                   {selectedProduct.isOnSale && (
                     <div className="absolute top-6 left-6 bg-red-600 text-white text-xs font-black px-4 py-2 rounded-sm uppercase tracking-[0.2em] shadow-2xl animate-pulse">
                       {selectedProduct.discountPercentage}% OFF

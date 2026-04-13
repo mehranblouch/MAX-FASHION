@@ -10,6 +10,7 @@ export interface Product {
   isNew?: boolean;
   isOnSale?: boolean;
   discountPercentage?: number;
+  secondaryImage?: string;
 }
 
 export interface Order {

@@ -13,7 +13,7 @@ export default function Home({ addToCart, settings }: { addToCart: (p: Product) 
     getDocs(collection(db, "products"))
       .then((snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as Product));
-        setProducts(data.slice(0, 4));
+        setProducts(data);
       });
   }, []);
 
@@ -79,11 +79,35 @@ export default function Home({ addToCart, settings }: { addToCart: (p: Product) 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   referrerPolicy="no-referrer"
                 />
-                <span className="absolute top-4 left-4 bg-yellow-500 text-black text-[10px] font-bold px-2 py-1 rounded-sm">NEW</span>
+                {product.isOnSale && (
+                  <div className="absolute top-4 left-4 bg-red-600 text-white text-[10px] font-black px-3 py-1.5 rounded-sm uppercase tracking-widest shadow-xl animate-pulse">
+                    {product.discountPercentage}% OFF
+                  </div>
+                )}
+                {!product.isOnSale && product.isNew && (
+                  <div className="absolute top-4 left-4 bg-yellow-500 text-black text-[10px] font-black px-3 py-1.5 rounded-sm uppercase tracking-widest shadow-xl">
+                    NEW
+                  </div>
+                )}
               </div>
               <div className="p-4 sm:p-6">
                 <h3 className="font-bold text-sm sm:text-lg mb-1 truncate">{product.name}</h3>
-                <p className="text-yellow-500 font-bold text-base sm:text-xl mb-2">Rs. {product.price.toLocaleString()}</p>
+                <div className="mb-2">
+                  {product.isOnSale ? (
+                    <div className="flex items-center gap-2">
+                      <p className="text-yellow-500 font-black text-base sm:text-xl">
+                        Rs. {(product.price * (1 - (product.discountPercentage || 0) / 100)).toLocaleString()}
+                      </p>
+                      <p className="text-gray-500 line-through text-[10px] sm:text-xs">
+                        Rs. {product.price.toLocaleString()}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-yellow-500 font-bold text-base sm:text-xl">
+                      Rs. {product.price.toLocaleString()}
+                    </p>
+                  )}
+                </div>
                 <div className="flex justify-between items-center text-[10px] sm:text-xs text-gray-500 mb-4 uppercase tracking-tighter sm:tracking-widest">
                   <span>{product.pieces} PIECES</span>
                   <span className="text-right">COLORS: {product.color}</span>
@@ -119,17 +143,40 @@ export default function Home({ addToCart, settings }: { addToCart: (p: Product) 
             
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="aspect-[3/4] md:aspect-auto">
-                <img 
-                  src={selectedProduct.image} 
-                  alt={selectedProduct.name} 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
+                <div className="grid grid-cols-1 gap-2 p-2">
+                  <img 
+                    src={selectedProduct.image} 
+                    alt={selectedProduct.name} 
+                    className="w-full h-full object-cover rounded-sm"
+                    referrerPolicy="no-referrer"
+                  />
+                  {selectedProduct.secondaryImage && (
+                    <img 
+                      src={selectedProduct.secondaryImage} 
+                      alt={`${selectedProduct.name} - view 2`} 
+                      className="w-full h-full object-cover rounded-sm"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                </div>
               </div>
               <div className="p-8 sm:p-12">
                 <p className="text-yellow-500 font-bold text-xs tracking-widest mb-2 uppercase">{selectedProduct.category}</p>
                 <h2 className="text-4xl font-bold mb-4 tracking-tighter">{selectedProduct.name}</h2>
-                <p className="text-3xl font-bold text-yellow-500 mb-8">Rs. {selectedProduct.price.toLocaleString()}</p>
+                <div className="mb-8">
+                  {selectedProduct.isOnSale ? (
+                    <div className="flex items-center gap-4">
+                      <p className="text-4xl font-black text-yellow-500">
+                        Rs. {(selectedProduct.price * (1 - (selectedProduct.discountPercentage || 0) / 100)).toLocaleString()}
+                      </p>
+                      <p className="text-xl text-gray-500 line-through">
+                        Rs. {selectedProduct.price.toLocaleString()}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-4xl font-bold text-yellow-500">Rs. {selectedProduct.price.toLocaleString()}</p>
+                  )}
+                </div>
                 
                 <div className="space-y-6 mb-12">
                   <div>

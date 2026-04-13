@@ -33,6 +33,7 @@ export default function Admin() {
     isNew: false,
     isOnSale: false,
     discountPercentage: 0,
+    secondaryImage: "",
   });
 
   const CATEGORIES = ["Wedding", "Summer", "Winter", "2 Pieces", "3 Pieces", "Casual"];
@@ -131,6 +132,23 @@ export default function Admin() {
     }
   };
 
+  const handleSecondaryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const base64Image = await compressImage(file);
+      setFormData(prev => ({ ...prev, secondaryImage: base64Image }));
+      alert("Secondary image processed successfully!");
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Failed to process secondary image.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleUrlChange = (url: string) => {
     setFormData({ ...formData, image: url });
     
@@ -139,6 +157,10 @@ export default function Admin() {
     } else {
       setSocialWarning("");
     }
+  };
+
+  const handleSecondaryUrlChange = (url: string) => {
+    setFormData({ ...formData, secondaryImage: url });
   };
 
   const handleProductSubmit = async (e: React.FormEvent) => {
@@ -155,6 +177,7 @@ export default function Admin() {
         category: formData.category,
         description: formData.description.trim(),
         image: formData.image.trim(),
+        secondaryImage: formData.secondaryImage.trim(),
         isNew: formData.isNew,
         isOnSale: formData.isOnSale,
         discountPercentage: Number(formData.discountPercentage),
@@ -180,7 +203,8 @@ export default function Admin() {
         image: "",
         isNew: false,
         isOnSale: false,
-        discountPercentage: 0
+        discountPercentage: 0,
+        secondaryImage: ""
       });
       setSocialWarning("");
       fetchData();
@@ -513,6 +537,54 @@ export default function Admin() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Secondary Image Upload */}
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-sm space-y-4">
+                    <label className="block text-xs font-bold text-gray-500 uppercase">Gallery Image (Optional)</label>
+                    <div className="space-y-4">
+                      {formData.secondaryImage && (
+                        <div className="relative aspect-video w-full bg-black border border-white/10 rounded-sm overflow-hidden group">
+                          <img 
+                            src={formData.secondaryImage} 
+                            alt="Secondary Preview" 
+                            className="w-full h-full object-contain"
+                            onError={(e) => (e.currentTarget.src = "https://images.unsplash.com/photo-1594750825015-2743c65dfeb1?q=80&w=600&auto=format&fit=crop")}
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setFormData({...formData, secondaryImage: ""})}
+                            className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                      <div className="relative group">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSecondaryImageUpload}
+                          disabled={isUploading}
+                          className="hidden"
+                          id="secondary-image-upload"
+                        />
+                        <label
+                          htmlFor="secondary-image-upload"
+                          className={`flex items-center justify-center gap-3 w-full p-4 border-2 border-dashed border-white/10 rounded-sm cursor-pointer hover:border-yellow-500 hover:bg-yellow-500/5 transition-all ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <ImageIcon className="w-5 h-5 text-gray-500 group-hover:text-yellow-500" />
+                          <span className="text-xs font-bold">{isUploading ? 'PROCESSING...' : 'UPLOAD SECONDARY IMAGE'}</span>
+                        </label>
+                      </div>
+                      <input
+                        type="url"
+                        placeholder="Or paste Secondary image URL..."
+                        className="w-full bg-black border border-white/10 p-4 rounded-sm outline-none focus:border-yellow-500 text-sm"
+                        value={formData.secondaryImage}
+                        onChange={(e) => handleSecondaryUrlChange(e.target.value)}
+                      />
+                    </div>
+                  </div>
                   <button 
                     disabled={isSubmitting}
                     className={`w-full py-4 bg-yellow-500 text-black font-bold rounded-sm hover:bg-yellow-400 transition-all ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -544,6 +616,7 @@ export default function Admin() {
                           category: p.category || "Casual",
                           description: p.description || "",
                           image: p.image || "",
+                          secondaryImage: p.secondaryImage || "",
                           isNew: p.isNew || false,
                           isOnSale: p.isOnSale || false,
                           discountPercentage: p.discountPercentage || 0
